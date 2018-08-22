@@ -1,3 +1,7 @@
 app:
     resource: '@AppBundle/Controller/'
     type: annotation
+
+bot_index:
+    path: /bot
+    controller: AppBundle\Controller\BotController::index

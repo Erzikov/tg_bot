@@ -16,83 +16,86 @@ use unreal4u\TelegramAPI\TgLog;
 
 class TelegramBot
 {
-    private $lastUPD;
-    private $objUPD;
-    private $tgLog;
-    private $loop;
+    private $message;
+    private $chatId;
+    private $botCommand;
+    private $response;
+    private $token;
 
     public function __construct(ContainerInterface $container)
     {
-        $token = $container->getParameter("bot_token");
-        $this->objUPD = new GetUpdates();
-        $this->loop = Factory::create();
-        $this->tgLog = new TgLog($token, new HttpClientRequestHandler($this->loop));
+        $this->token = $container->getParameter("bot_token");
     }
 
-    public function test():void
+    public function test(Update $update):void
     {
-        $this->loop->addPeriodicTimer(3, function () {
-            $result = $this->getUpdate();
-            $result->then(
-                function (TraversableCustomType $updates) {
-                    foreach ($updates as $update) {
-                        $chat_id = $update->message->chat->id;
-                        switch ($update->message->text) {
-                            case "/start":
-                                $message = "Добро пожаловать!";
-                                break;
-                            case "/help":
-                                $message = "Бог поможет";
-                                break;
-                            case "Привет":
-                                $message = "Здарова";
-                                break;
-                            case "Пёс":
-                            case "пёс":
-                                $message = "Обидно";
-                                break;
-                            default:
-                                $message = "Скажи, что я пёс!";
-                        }
-                        $this->sendMessage($message, $chat_id);
-                    }
+        $this->extractUpdateObject($update);
+        $this->createMessageResponse();
+        switch ($this->botCommand) {
+            case "start":
+                $this->response->text = "Добро пожаловать на борт!";
+                break;
+            case "help":
+                $this->response->text = "Помощь";
+                break;
+            default:
+                $this->response->text = "Я не знаю такой команды!";
+                break;
+        }
+    }
+
+//    /**
+//     * @param string $message
+//     * @param int $chat_id
+//     */
+//    private function sendMessage(string $message, int $chat_id):void
+//    {
+//        $sendMessage = new SendMessage();
+//        $sendMessage->text = $message;
+//        $sendMessage->chat_id = $chat_id;
+//
+//        $this->tgLog->performApiRequest($sendMessage);
+//    }
+
+    /**
+     * @param Update $update
+     */
+    private function extractUpdateObject(Update $update):void
+    {
+        if ($update->message instanceof Message) {
+            $this->message = $update->message;
+            $this->chatId = $update->message->chat->id;
+
+            $this->extractBotCommand();
+        }
+    }
+
+    private function extractBotCommand():void
+    {
+        foreach ($this->message->entities as $entity) {
+            if ($entity->type === "bot_command") {
+                $this->botCommand = trim(substr($this->message->text, $entity->offset + 1, $entity->length));
+
+                if (strpos($this->botCommand, "@") !== false) {
+                    $this->botCommand = substr($this->botCommand, 0, strpos($this->botCommand, "@"));
                 }
-            );
-        });
-        $this->loop->run();
-    }
-
-    /**
-     * @return PromiseInterface
-     */
-    public function getUpdate():PromiseInterface
-    {
-        $this->objUPD->offset = $this->lastUPD;
-        $promise = $this->tgLog->performApiRequest($this->objUPD);
-        $promise->then(
-            function (TraversableCustomType $response) {
-                $this->lastUPD = ++$response->data[count($response->data)-1]->update_id;
-            },
-            function (\Exception $e) {
-                echo "Ошибка: ".get_class($e)."\n";
-                echo "Текст ошибки:".$e->getMessage();
-                echo "\n";
             }
-        );
-
-        return $promise;
+        }
     }
 
-    /**
-     * @param string $message
-     * @param int $chat_id
-     */
-    private function sendMessage(string $message, int $chat_id):void
+    private function createMessageResponse():void
     {
-        $sendMessage = new SendMessage();
-        $sendMessage->text = $message;
-        $sendMessage->chat_id = $chat_id;
+        $this->response = new SendMessage();
+        $this->response->chat_id = $this->chatId;
+    }
 
-        $this->tgLog->performApiRequest($sendMessage);
+    public function sendResponse()
+    {
+        if ($this->response !== null) {
+            $loop = Factory::create();
+            $tgLog = new TgLog($this->token, new HttpClientRequestHandler($loop));
+            $tgLog->performApiRequest($this->response);
+            $loop->run();
+        }
     }
 }
