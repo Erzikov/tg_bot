@@ -17,14 +17,16 @@ class BotController extends Controller
         $this->bot = $bot;
     }
 
-    public function index(Request $request)
+    /**
+     * @param Request $request
+     * @return Response
+     */
+    public function index(Request $request):Response
     {
         $content = json_decode($request->getContent(), true);
         $update = new Update($content);
 
-//        var_dump($update->message);
-
-        $this->bot->test($update);
+        $this->bot->run($update);
         var_dump($this->bot->sendResponse());
 
         return new Response();
