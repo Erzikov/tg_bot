@@ -27,7 +27,6 @@ class BotController extends Controller
         $update = new Update($content);
 
         $this->bot->run($update);
-        var_dump($this->bot->sendResponse());
 
         return new Response();
     }
